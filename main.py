@@ -1,16 +1,33 @@
 from queue import PriorityQueue, SimpleQueue
 import math
 
+TASK = 2
+
+
+def move_cost(tile_value):
+    if 1 <= tile_value <= 6:
+        cost = 1
+    elif 7 <= tile_value <= 16:
+        cost = 3
+    elif tile_value == 17:
+        cost = 15
+    else:
+        cost = 0
+
+    return cost
+
 
 class State:
-    def __init__(self, id, parent_id, board_vector, priority, gn=0, hn=0):
+    def __init__(self, id, parent_id, board_vector, level, path_cost=0, gn=0, hn=0):
         self.id = id
         self.parent_id = parent_id
         self.board_vector = board_vector
-        self.priority = priority
+        self.level = level
+        self.path_cost = path_cost
         self.gn = gn
         self.hn = hn
         self.fn = gn + hn
+        self.priority = self.fn if self.fn else level
 
     def children(self):  # find child states
         children_boards = []
@@ -21,28 +38,36 @@ class State:
             child_board = self.board_vector[:]
             child_board[zero_index] = value_above
             child_board[zero_index - 3] = 0
-            children_boards.append(child_board)
+
+            cost = move_cost(value_above)
+            children_boards.append((child_board, cost))
 
         if zero_index < 15:  # not bottom row so there must be a value below
             value_below = self.board_vector[zero_index + 3]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_below
             child_board[zero_index + 3] = 0
-            children_boards.append(child_board)
+
+            cost = move_cost(value_below)
+            children_boards.append((child_board, cost))
 
         if zero_index % 3 != 0:  # not left column so there must be a value to the left
             value_left = self.board_vector[zero_index - 1]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_left
             child_board[zero_index - 1] = 0
-            children_boards.append(child_board)
+
+            cost = move_cost(value_left)
+            children_boards.append((child_board, cost))
 
         if (zero_index - 2) % 3 != 0: # not right column so there must be a value to the right
             value_right = self.board_vector[zero_index + 1]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_right
             child_board[zero_index + 1] = 0
-            children_boards.append(child_board)
+
+            cost = move_cost(value_right)
+            children_boards.append((child_board, cost))
 
         return children_boards
 
@@ -60,6 +85,9 @@ class State:
             return self.board_vector == other.board_vector
         return False
 
+    def __lt__(self, other):
+        return self.priority < other.priority
+
 
 def bfs(open_list, closed_list, goal_vector):
     open_list_count = 1
@@ -67,10 +95,10 @@ def bfs(open_list, closed_list, goal_vector):
 
     current_state = open_list.get()[1]  # grab first element from open list (start state)
     level_priority = 0
-    old_level = level_priority
+    old_level_priority = level_priority
 
     while current_state.board_vector != goal_vector:  # end when state being evaluated is the goal state
-        if len(closed_list) > 10000:
+        if len(closed_list) > 10000:  # end if process takes too long
             print('Over 10,000 nodes evaluated without finding the solution')
             print('Process has been terminated')
             return
@@ -78,21 +106,22 @@ def bfs(open_list, closed_list, goal_vector):
         children = current_state.children()
 
         # calculate priority value for new level, or continue with old
-        new_level = (math.floor(current_state.priority / 1000) + 1) * 1000
-        if old_level > new_level:
-            level_priority = old_level
+        level = current_state.level + 1
+        new_level_priority = level * 1000
+        if old_level_priority > new_level_priority:
+            level_priority = old_level_priority
         else:
-            level_priority = new_level
+            level_priority = new_level_priority
 
         for child in children:  # find children of current state and add to open list
             id_counter += 1
-            child_state = State(id_counter, current_state.id, child, level_priority)
+            child_state = State(id_counter, current_state.id, child[0], level)
             if child_state in closed_list:
                 id_counter -= 1  # if board vector already present in closed list, skip child
             else:
                 open_list.put((level_priority, child_state))
                 level_priority += 1
-                old_level = level_priority
+                old_level_priority = level_priority
                 open_list_count += 1
 
         closed_list.append(current_state)  # put current state in closed list when done evaluating
@@ -103,18 +132,93 @@ def bfs(open_list, closed_list, goal_vector):
     print('Nodes added to the Open List: %d' % open_list_count)
     print('Nodes added to the Closed List: %d' % len(closed_list))
 
-    bfs_print_path(closed_list, current_state.id)
+    print_path(closed_list, current_state.id)
 
 
-def bfs_print_path(closed_list, parent_id):
+def a_star(open_list, closed_list, goal_vector):
+    open_list_count = 1
+    id_counter = 0
+
+    current_state = open_list.get()[1]  # grab first element from open list (start state)
+    current_state.hn = calc_hn(current_state.board_vector, goal_vector)  # calc hn for start state for output
+
+    while current_state.board_vector != goal_vector:  # end when state being evaluated is the goal state
+        if len(closed_list) > 10000:  # end if process takes too long
+            print('Over 10,000 nodes evaluated without finding the solution')
+            print('Process has been terminated')
+            return
+
+        children = current_state.children()
+
+        for child in children:
+            id_counter += 1
+            # get or calculate values for child state
+            child_vector, path_cost = child
+            level = current_state.level + 1
+            gn = current_state.gn + path_cost  # cost from start to child
+            hn = calc_hn(child_vector, goal_vector)
+            child_state = State(id_counter, current_state.id, child_vector, level, path_cost, gn, hn)
+            if child_state in closed_list:
+                id_counter -= 1  # if board vector already present in closed list, skip child
+            else:
+                open_list.put((child_state.fn, child_state))
+                open_list_count += 1
+
+        closed_list.append(current_state)  # put current state in closed list when done evaluating
+        current_state = open_list.get()[1]  # get new current state
+
+    closed_list.append(current_state)  # put goal state in the closed list to complete
+
+    print(f'Nodes added to the Open List: {open_list_count}')
+    print(f'Nodes added to the Closed List: {len(closed_list)}')
+    path_length = calc_path_length(closed_list, current_state.id)
+    print(f'Total path length (# moves): {path_length}\n')
+
+    print_path(closed_list, current_state.id)
+
+
+def calc_hn(state_vector, goal_vector):  # calculate heuristic based on which task
+    if TASK == 2:
+        return calc_hn_task1(state_vector, goal_vector)
+    elif TASK == 3:
+        return calc_hn_task2()
+
+
+def calc_hn_task1(state_vector, goal_vector):
+    est_cost = 0
+    for i in range(0, len(state_vector)):  # h(n) = num tiles not in correct place
+        if state_vector[i] != goal_vector[i] and state_vector[i] != 0:
+            est_cost += 1
+    return est_cost
+
+
+def calc_hn_task2():
+    None
+
+
+def print_path(closed_list, parent_id):
     for state in closed_list:
         if state.id == parent_id:
-            bfs_print_path(closed_list, state.parent_id)
+            print_path(closed_list, state.parent_id)
 
-            print('State ID: %d' % state.id)
-            print('Level Num: %d' % math.floor(state.priority / 1000))
+            print(f'State ID: {state.id}')
+            if TASK in [2, 3]:
+                print(f'h(n) = {state.hn}\tg(n) = {state.gn}\nf(n) = {state.fn}')
+            else:
+                print(f'Level Num: {state.level}')
             state.print()
             print()
+
+
+def calc_path_length(closed_list, parent_id):
+    length = 0
+    while parent_id != -1:
+        for state in closed_list:
+            if state.id == parent_id:
+                length += 1
+                parent_id = state.parent_id
+
+    return length - 1
 
 
 def find_solution(start_vector, goal_vector):
@@ -130,7 +234,9 @@ def find_solution(start_vector, goal_vector):
     print('Start vector: %s' % start_vector)
     print('Goal vector: %s' % goal_vector)
 
-    bfs(open_list, closed_list, goal_vector)
+    # bfs(open_list, closed_list, goal_vector)
+
+    a_star(open_list, closed_list, goal_vector)
 
 
 if __name__ == '__main__':
