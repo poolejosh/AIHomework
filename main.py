@@ -1,5 +1,4 @@
-from queue import PriorityQueue, SimpleQueue
-import math
+from queue import PriorityQueue
 
 TASK = 2
 
@@ -85,8 +84,8 @@ class State:
             return self.board_vector == other.board_vector
         return False
 
-    def __lt__(self, other):
-        return self.priority < other.priority
+    def __lt__(self, other):  # for sorting priority list, lower priority values or lower id values are first
+        return self.priority < other.priority or (self.priority == other.priority and self.id < other.id)
 
 
 def bfs(open_list, closed_list, goal_vector):
@@ -94,8 +93,6 @@ def bfs(open_list, closed_list, goal_vector):
     id_counter = 0
 
     current_state = open_list.get()[1]  # grab first element from open list (start state)
-    level_priority = 0
-    old_level_priority = level_priority
 
     while current_state.board_vector != goal_vector:  # end when state being evaluated is the goal state
         if len(closed_list) > 10000:  # end if process takes too long
@@ -105,13 +102,7 @@ def bfs(open_list, closed_list, goal_vector):
 
         children = current_state.children()
 
-        # calculate priority value for new level, or continue with old
         level = current_state.level + 1
-        new_level_priority = level * 1000
-        if old_level_priority > new_level_priority:
-            level_priority = old_level_priority
-        else:
-            level_priority = new_level_priority
 
         for child in children:  # find children of current state and add to open list
             id_counter += 1
@@ -119,9 +110,7 @@ def bfs(open_list, closed_list, goal_vector):
             if child_state in closed_list:
                 id_counter -= 1  # if board vector already present in closed list, skip child
             else:
-                open_list.put((level_priority, child_state))
-                level_priority += 1
-                old_level_priority = level_priority
+                open_list.put((level, child_state))
                 open_list_count += 1
 
         closed_list.append(current_state)  # put current state in closed list when done evaluating
@@ -246,5 +235,5 @@ if __name__ == '__main__':
     find_solution([1, 13, 3, 5, 17, 9, 11, 0, 8, 12, 14, 10, 7, 16, 15, 4, 6, 2],  # ii
                   [5, 1, 3, 13, 17, 9, 11, 0, 8, 12, 14, 10, 7, 16, 15, 4, 6, 2])
 
-    find_solution([5, 15, 7, 8, 9, 11, 10, 3, 12, 0, 2, 13, 4, 14, 1, 6, 16, 17],  # to test for process timeout
-                  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 17, 16])
+    # find_solution([5, 15, 7, 8, 9, 11, 10, 3, 12, 0, 2, 13, 4, 14, 1, 6, 16, 17],  # to test for process timeout
+    #               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 17, 16])
