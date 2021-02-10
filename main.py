@@ -1,6 +1,7 @@
 from queue import PriorityQueue
+import math
 
-TASK = 2
+TASK = 3
 
 
 def move_cost(tile_value):
@@ -32,7 +33,8 @@ class State:
         children_boards = []
 
         zero_index = self.board_vector.index(0)
-        if zero_index > 2:  # not top row so there must be a value above
+        row, column = find_2d_index(zero_index)
+        if row > 0:  # not top row so there must be a value above
             value_above = self.board_vector[zero_index - 3]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_above
@@ -41,7 +43,7 @@ class State:
             cost = move_cost(value_above)
             children_boards.append((child_board, cost))
 
-        if zero_index < 15:  # not bottom row so there must be a value below
+        if row < 5:  # not bottom row so there must be a value below
             value_below = self.board_vector[zero_index + 3]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_below
@@ -50,7 +52,7 @@ class State:
             cost = move_cost(value_below)
             children_boards.append((child_board, cost))
 
-        if zero_index % 3 != 0:  # not left column so there must be a value to the left
+        if column > 0:  # not left column so there must be a value to the left
             value_left = self.board_vector[zero_index - 1]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_left
@@ -59,7 +61,7 @@ class State:
             cost = move_cost(value_left)
             children_boards.append((child_board, cost))
 
-        if (zero_index - 2) % 3 != 0: # not right column so there must be a value to the right
+        if column < 2:  # not right column so there must be a value to the right
             value_right = self.board_vector[zero_index + 1]
             child_board = self.board_vector[:]
             child_board[zero_index] = value_right
@@ -168,12 +170,12 @@ def a_star(open_list, closed_list, goal_vector):
 
 def calc_hn(state_vector, goal_vector):  # calculate heuristic based on which task
     if TASK == 2:
-        return calc_hn_task1(state_vector, goal_vector)
+        return calc_hn_task2(state_vector, goal_vector)
     elif TASK == 3:
-        return calc_hn_task2()
+        return calc_hn_task3(state_vector, goal_vector)
 
 
-def calc_hn_task1(state_vector, goal_vector):
+def calc_hn_task2(state_vector, goal_vector):
     est_cost = 0
     for i in range(0, len(state_vector)):  # h(n) = num tiles not in correct place
         if state_vector[i] != goal_vector[i] and state_vector[i] != 0:
@@ -181,8 +183,35 @@ def calc_hn_task1(state_vector, goal_vector):
     return est_cost
 
 
-def calc_hn_task2():
-    None
+def calc_hn_task3(state_vector, goal_vector):
+    sum_cost = 0
+    for i in range(0, len(state_vector)):  # h(n) = sum of smallest moves for each tile to reach its final location
+        if state_vector[i] != goal_vector[i] and state_vector[i] != 0:
+            tile = state_vector[i]
+            goal_i = goal_vector.index(tile)
+            i_2d = find_2d_index(i)
+            goal_i_2d = find_2d_index(goal_i)
+            # find difference between row and column of tile index and goal index
+            row_diff = abs(i_2d[0] - goal_i_2d[0])
+            column_diff = abs(i_2d[1] - goal_i_2d[1])
+            # the sum of the row and column difference is the min moves to get the tile to its goal position
+            min_moves = row_diff + column_diff
+            sum_cost += min_moves
+
+    return sum_cost
+
+
+def find_2d_index(index):  # find row and column on puzzle grid given a 1d index
+    r = math.floor(index / 3)
+
+    if index % 3 == 0:
+        c = 0
+    elif (index-1) % 3 == 0:
+        c = 1
+    else:
+        c = 2
+
+    return r, c
 
 
 def print_path(closed_list, parent_id):
